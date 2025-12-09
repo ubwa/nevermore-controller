@@ -109,6 +109,27 @@ SettingsPersisted const* slot_validate(uint8_t const slot[]) {
 
     return &stored;
 }
+struct [[gnu::packed]] PeltierConfig {
+    float min_temp_cold = -10.0f;
+    float max_temp_cold = 50.0f;
+    float min_temp_hot = -10.0f;
+    float max_temp_hot = 80.0f;
+    float max_deviation = 40.0f;
+    float enable_delay = 5.0f;
+    float cycle_time = 0.1f;  // 10 Hz PWM
+    float max_pwm = 100.0f;
+    float kp = 10.0f;
+    float ki = 0.1f;
+    float kd = 1.0f;
+    float smooth_time = 1.0f;
+    BLE::Temperature target_temp = 20.0f;
+    uint8_t enabled = 0;
+    // Reserved for future use
+    float dew_point_safety = 2.0f;
+    float hot_side_safety = 10.0f;
+    float dew_point_base = 0.0f;
+    float dew_point_range = 0.0f;
+};
 
 auto slots() {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
@@ -452,6 +473,35 @@ void SettingsV0::merge_valid_fields(SettingsV0 const& x) {
 
     if (x.servo_vent.validate()) servo_vent = x.servo_vent;
     flags = x.flags;
+
+    // Peltier configuration - validate ranges
+    if (x.peltier.min_temp_cold >= -273.15f && x.peltier.min_temp_cold <= x.peltier.max_temp_cold)
+        peltier.min_temp_cold = x.peltier.min_temp_cold;
+    if (x.peltier.max_temp_cold >= x.peltier.min_temp_cold && x.peltier.max_temp_cold <= 327.67f)
+        peltier.max_temp_cold = x.peltier.max_temp_cold;
+    if (x.peltier.min_temp_hot >= -273.15f && x.peltier.min_temp_hot <= x.peltier.max_temp_hot)
+        peltier.min_temp_hot = x.peltier.min_temp_hot;
+    if (x.peltier.max_temp_hot >= x.peltier.min_temp_hot && x.peltier.max_temp_hot <= 327.67f)
+        peltier.max_temp_hot = x.peltier.max_temp_hot;
+    if (x.peltier.max_deviation >= 0.0f && x.peltier.max_deviation <= 200.0f)
+        peltier.max_deviation = x.peltier.max_deviation;
+    if (x.peltier.enable_delay >= 0.0f && x.peltier.enable_delay <= 3600.0f)
+        peltier.enable_delay = x.peltier.enable_delay;
+    if (x.peltier.cycle_time > 0.0f && x.peltier.cycle_time <= 10.0f)
+        peltier.cycle_time = x.peltier.cycle_time;
+    if (x.peltier.max_pwm >= 0.0f && x.peltier.max_pwm <= 100.0f) peltier.max_pwm = x.peltier.max_pwm;
+    if (x.peltier.kp >= 0.0f && x.peltier.kp <= 1000.0f) peltier.kp = x.peltier.kp;
+    if (x.peltier.ki >= 0.0f && x.peltier.ki <= 1000.0f) peltier.ki = x.peltier.ki;
+    if (x.peltier.kd >= 0.0f && x.peltier.kd <= 1000.0f) peltier.kd = x.peltier.kd;
+    if (x.peltier.smooth_time >= 0.0f && x.peltier.smooth_time <= 60.0f)
+        peltier.smooth_time = x.peltier.smooth_time;
+    if (x.peltier.target_temp >= -10.0f && x.peltier.target_temp <= 50.0f)
+        peltier.target_temp = x.peltier.target_temp;
+    peltier.enabled = x.peltier.enabled;
+    peltier.dew_point_safety = x.peltier.dew_point_safety;
+    peltier.hot_side_safety = x.peltier.hot_side_safety;
+    peltier.dew_point_base = x.peltier.dew_point_base;
+    peltier.dew_point_range = x.peltier.dew_point_range;
 }
 
 }  // namespace nevermore::settings

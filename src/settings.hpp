@@ -111,6 +111,31 @@ private:
     Store store = 0;
 };
 
+struct [[gnu::packed]] PeltierConfig {
+    float min_temp_cold = -10.0f;
+    float max_temp_cold = 50.0f;
+    float min_temp_hot = -10.0f;
+    float max_temp_hot = 80.0f;
+    float max_deviation = 40.0f;
+    float enable_delay = 5.0f;
+    float cycle_time = 0.1f;  // 10 Hz PWM
+    float max_pwm = 100.0f;
+    float kp = 10.0f;
+    float ki = 0.1f;
+    float kd = 1.0f;
+    float smooth_time = 1.0f;
+    BLE::Temperature target_temp = 20.0f;
+    uint8_t enabled = 0;
+    // Condensation and thermal protection
+    float dew_point_safety = 5.0f;  // Dew point safety margin (°C above dew point)
+    float hot_side_safety = 5.0f;   // Hot side safety margin (°C below max_temp_hot)
+    float dew_point_base = 0.0f;    // Reserved for testing
+    float dew_point_range = 0.0f;   // Reserved for testing
+    uint8_t control_mode = 0;       // 0=PID, 1=Watermark
+    float watermark_high = 2.0f;    // Upper threshold above target (°C)
+    float watermark_low = 2.0f;     // Lower threshold below target (°C)
+};
+
 // Layout **cannot** change. This would break back-compatibility.
 // Fields **can** be appended w/o bumping the header version.
 // Padding **must** be explicitly declared using `Padding<N>`.
@@ -141,7 +166,7 @@ struct [[gnu::packed]] SettingsV0 {
     PeriodSecInverse<uint8_t, 0.f, 1.f> fan_kick_start_sec = 0.5f;
     BLE::Percentage8 fan_power_min = 17.5;           // Delta BFB0712HF
     BLE::Percentage8 fan_power_kick_start_min = 18;  // Delta BFB0712HF
-
+    PeltierConfig peltier;
     // replaces valid fields from RHS into self
     void merge_valid_fields(SettingsV0 const&);
 };
