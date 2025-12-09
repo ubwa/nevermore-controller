@@ -32,10 +32,17 @@ constexpr Pins PINS_DEFAULT{
                         .select = WAVESHARE_RP2040_LCD_CS_PIN,
                 },
         },
-
         .fan_pwm = {15},
         .fan_tachometer = {14},
         .neopixel_data = {3},
+        .peltier_pwm = {},  // TODO: Configure PWM pin for Peltier
+
+        .adc_thermistor = {26, 27},  // ADC0 and ADC1
+        .adc_thermistor_cal =
+                {
+                        {10000.0f, 10000.0f, 25.0f, 3950.0f, 3.3f},  // Sensor 0 (Peltier cold)
+                        {10000.0f, 10000.0f, 25.0f, 3950.0f, 3.3f},  // Sensor 1 (Peltier hot)
+                },
         .photocatalytic_pwm = {2},
         .vent_servo_pwm = 13,
 

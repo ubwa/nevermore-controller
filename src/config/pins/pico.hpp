@@ -27,6 +27,15 @@ constexpr Pins PINS_DEFAULT{
         .fan_pwm = {13},
         .fan_tachometer = {15},
         .neopixel_data = {12},
+        .peltier_pwm = {},  // TODO: Configure PWM pin for Peltier
+        
+        // Generic ADC thermistor sensors (index 0 = cold side, index 1 = hot side for Peltier)
+        .adc_thermistor = {26, 27},  // ADC0 and ADC1
+        .adc_thermistor_cal = {
+                {10000.0f, 10000.0f, 25.0f, 3950.0f, 3.3f},  // Sensor 0 (Peltier cold)
+                {10000.0f, 10000.0f, 25.0f, 3950.0f, 3.3f},  // Sensor 1 (Peltier hot)
+        },
+        
         .photocatalytic_pwm = 16,
         .vent_servo_pwm = 14,
         .cooler_pwm = 17,
