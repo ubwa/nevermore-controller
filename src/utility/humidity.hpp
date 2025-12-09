@@ -52,4 +52,17 @@ constexpr N absolute_fast(N const humidity_relative, N const temperature_c) {
     return N(216.7 * 6.112) * ah * exp((N(17.62) * temperature_c) / (N(243.12) + temperature_c)) / K;
 }
 
+template <typename N>
+constexpr N dew_point(N const humidity_relative, N const temperature_c) {
+    constexpr N a = 17.625;
+    constexpr N b = 243.04;
+
+    // Clamp humidity to valid range
+    N RH = std::clamp<N>(humidity_relative, 0.01, 100);
+
+    // Magnus-Tetens formula
+    N alpha = std::log(RH / 100.0) + (a * temperature_c) / (b + temperature_c);
+    return (b * alpha) / (a - alpha);
+}
+
 }  // namespace nevermore::humidity
