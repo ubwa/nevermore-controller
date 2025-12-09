@@ -67,6 +67,11 @@ bi_decl(bi_1pin_with_name(
     PINS_DEFAULT.neopixel_data[0].gpio  , "NeoPixel Data"));
 
 bi_decl(bi_3pins_with_names(
+    PINS_DEFAULT.peltier_pwm[0].gpio    , "Peltier PWM",
+    PINS_DEFAULT.adc_thermistor[0].gpio , "ADC Thermistor 0",
+    PINS_DEFAULT.adc_thermistor[1].gpio , "ADC Thermistor 1"));
+
+bi_decl(bi_3pins_with_names(
     first_pin(Pins::BusSPI::Kind::display , SPI_Pin::CLOCK), "Display - SPI CLOCK",
     first_pin(Pins::BusSPI::Kind::display , SPI_Pin::SEND ), "Display - SPI SEND",
     first_pin(Pins::BusSPI::Kind::display , SPI_Pin::RECV ), "Display - SPI RECV"));
