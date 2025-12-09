@@ -216,6 +216,27 @@ class BusSPI(DataclassMixin):
 
 
 @dataclass
+class ThermistorCalibration(DataclassMixin):
+    r_series: float = csfield(cs.Default(cs.Float32l, 0.0))
+    r_nominal: float = csfield(cs.Default(cs.Float32l, 0.0))
+    t_nominal: float = csfield(cs.Default(cs.Float32l, 0.0))
+    b_coefficient: float = csfield(cs.Default(cs.Float32l, 0.0))
+    v_ref: float = csfield(cs.Default(cs.Float32l, 0.0))
+
+    def active(self) -> bool:
+        return any(
+            x != 0.0
+            for x in [
+                self.r_series,
+                self.r_nominal,
+                self.t_nominal,
+                self.b_coefficient,
+                self.v_ref,
+            ]
+        )
+
+
+@dataclass
 class Pins(DataclassMixin, DataClassJsonMixin):
     i2c: List[BusI2C] = csfield_array(
         DataclassStruct(BusI2C),
@@ -230,6 +251,13 @@ class Pins(DataclassMixin, DataClassJsonMixin):
     fan_pwm: GPIOs = csfield_gpios()
     fan_tachometer: GPIOs = csfield_gpios()
     neopixel_data: GPIOs = csfield_gpios()
+    peltier_pwm: GPIOs = csfield_gpios()
+    adc_thermistor: GPIOs = csfield_gpios()
+    adc_thermistor_cal: List[ThermistorCalibration] = csfield_array(
+        DataclassStruct(ThermistorCalibration),
+        ThermistorCalibration(),
+        lambda x: x.active(),
+    )
     photocatalytic_pwm: GPIO = csfield_gpio()
     vent_servo_pwm: GPIO = csfield_gpio()
     cooler_pwm: GPIO = csfield_gpio()
@@ -240,7 +268,7 @@ class Pins(DataclassMixin, DataClassJsonMixin):
     touch_interrupt: GPIO = csfield_gpio()
     touch_reset: GPIO = csfield_gpio()
     led_status_voc_calibration: GPIO = csfield_gpio()
-    _pad_tail: Padding = csfield_pad(32 + 2)
+    _pad_tail: Padding = csfield_pad(10)
 
     def to_json_pretty(self):
         def transform(x: Any) -> Any:
