@@ -741,6 +741,15 @@ class Nevermore:
     )
     cmd_NEVERMORE_SENSOR_CALIBRATION_RESET_help = "Reset sensor calibration"
     cmd_NEVERMORE_RESET_help = "Reset settings. Do not use unless directed."
+    cmd_NEVERMORE_PELTIER_ENABLE_help = "Enable or disable the Peltier cooler. Requires valid sensor readings on GPIO 26 and 27."
+    cmd_NEVERMORE_PELTIER_TARGET_help = (
+        "Set the target temperature for the Peltier cold side."
+    )
+    cmd_NEVERMORE_PELTIER_MODE_help = "Set the Peltier control mode (BANGBANG or PID)."
+    cmd_NEVERMORE_PELTIER_CONFIG_help = (
+        "Configure Peltier safety limits and control parameters."
+    )
+    cmd_NEVERMORE_PELTIER_STATUS_help = "Report Peltier status to console."
 
     @classmethod
     def gcode_command_names(cls):
@@ -862,6 +871,36 @@ class Nevermore:
             raise config.error(
                 f"`display_ui` isn't one of: {', '.join(x.name for x in DisplayUI)}"
             )
+
+        self._peltier_target_temp = config.getfloat(
+            "peltier_target_temp", 20.0, minval=-10.0, maxval=50.0
+        )
+        self._peltier_enabled = config.getboolean("peltier_enabled", False)
+        self._peltier_use_pid = config.getboolean("peltier_use_pid", False)
+
+        self._peltier_min_temp_cold = config.getfloat("peltier_min_temp_cold", -10.0)
+        self._peltier_max_temp_cold = config.getfloat("peltier_max_temp_cold", 50.0)
+        self._peltier_min_temp_hot = config.getfloat("peltier_min_temp_hot", -10.0)
+        self._peltier_max_temp_hot = config.getfloat("peltier_max_temp_hot", 80.0)
+        self._peltier_max_deviation = config.getfloat(
+            "peltier_max_deviation", 40.0, minval=0.0
+        )
+
+        self._peltier_enable_delay = config.getfloat(
+            "peltier_enable_delay", 5.0, minval=0.0
+        )
+        self._peltier_cycle_time = config.getfloat("peltier_cycle_time", 0.1, above=0.0)
+        self._peltier_max_pwm = config.getfloat(
+            "peltier_max_pwm", 100.0, minval=0.0, maxval=100.0
+        )
+
+        # Peltier PID parameters
+        self._peltier_kp = config.getfloat("peltier_kp", 10.0)
+        self._peltier_ki = config.getfloat("peltier_ki", 0.1)
+        self._peltier_kd = config.getfloat("peltier_kd", 1.0)
+        self._peltier_smooth_time = config.getfloat(
+            "peltier_smooth_time", 1.0, minval=0.0
+        )
 
         self._interface: NevermoreInterface
         if (cfg_serial := NevermoreSerialInfo.mk(config)) is not None:
@@ -997,6 +1036,17 @@ class Nevermore:
         data.update((f"{k}_min", v) for k, v in self._state_min.as_dict().items())
         data.update((f"{k}_max", v) for k, v in self._state_max.as_dict().items())
         data['connected'] = self._interface.connected
+
+        # Add Peltier status
+        # TODO: Read actual values from controller state when GATT characteristics are implemented
+        data["peltier_enabled"] = self._peltier_enabled
+        data["peltier_target_temp"] = self._peltier_target_temp
+        data["peltier_use_pid"] = self._peltier_use_pid
+        data["peltier_temperature_cold"] = None  # TODO: Read from controller
+        data["peltier_temperature_hot"] = None  # TODO: Read from controller
+        data["peltier_power"] = None  # TODO: Read from controller
+        data["peltier_error_status"] = None  # TODO: Read from controller
+
         return data
 
     def cmd_NEVERMORE_PRINT_START(self, gcmd: GCodeCommand) -> None:
@@ -1064,6 +1114,139 @@ class Nevermore:
 
     def cmd_NEVERMORE_SENSOR_CALIBRATION_RESET(self, gcmd: GCodeCommand) -> None:
         self._interface.send_command(CmdConfigResetSensorCalibration())
+
+    def cmd_NEVERMORE_PELTIER_ENABLE(self, gcmd: GCodeCommand) -> None:
+        enable = gcmd.get_int("ENABLE", minval=0, maxval=1)
+        self._peltier_enabled = bool(enable)
+        self._interface.send_command(CmdPeltierEnable(bool(enable)))
+        if enable:
+            gcmd.respond_info(
+                f"Peltier enabled (target: {self._peltier_target_temp}°C)"
+            )
+        else:
+            gcmd.respond_info("Peltier disabled")
+
+    def cmd_NEVERMORE_PELTIER_TARGET(self, gcmd: GCodeCommand) -> None:
+        temp = gcmd.get_float("TEMP", minval=-10.0, maxval=50.0)
+        self._peltier_target_temp = temp
+        self._interface.send_command(CmdPeltierTargetTemp(temp))
+        gcmd.respond_info(f"Peltier target temperature set to {temp:.1f}°C")
+
+    def cmd_NEVERMORE_PELTIER_MODE(self, gcmd: GCodeCommand) -> None:
+        mode = gcmd.get("MODE").upper()
+        if mode not in ["BANGBANG", "PID"]:
+            gcmd.error("MODE must be either BANGBANG or PID")
+
+        self._peltier_use_pid = mode == "PID"
+        self._interface.send_command(CmdPeltierUsePID(self._peltier_use_pid))
+        gcmd.respond_info(f"Peltier control mode set to {mode}")
+
+    def cmd_NEVERMORE_PELTIER_CONFIG(self, gcmd: GCodeCommand) -> None:
+        # Safety limits
+        if gcmd.get_float("MIN_TEMP_COLD", None) is not None:
+            self._peltier_min_temp_cold = gcmd.get_float("MIN_TEMP_COLD")
+            self._interface.send_command(
+                CmdPeltierMinTempCold(self._peltier_min_temp_cold)
+            )
+
+        if gcmd.get_float("MAX_TEMP_COLD", None) is not None:
+            self._peltier_max_temp_cold = gcmd.get_float("MAX_TEMP_COLD")
+            self._interface.send_command(
+                CmdPeltierMaxTempCold(self._peltier_max_temp_cold)
+            )
+
+        if gcmd.get_float("MIN_TEMP_HOT", None) is not None:
+            self._peltier_min_temp_hot = gcmd.get_float("MIN_TEMP_HOT")
+            self._interface.send_command(
+                CmdPeltierMinTempHot(self._peltier_min_temp_hot)
+            )
+
+        if gcmd.get_float("MAX_TEMP_HOT", None) is not None:
+            self._peltier_max_temp_hot = gcmd.get_float("MAX_TEMP_HOT")
+            self._interface.send_command(
+                CmdPeltierMaxTempHot(self._peltier_max_temp_hot)
+            )
+
+        if gcmd.get_float("MAX_DEVIATION", None) is not None:
+            self._peltier_max_deviation = gcmd.get_float("MAX_DEVIATION", minval=0.0)
+            self._interface.send_command(
+                CmdPeltierMaxDeviation(self._peltier_max_deviation)
+            )
+
+        # Control parameters
+        if gcmd.get_float("ENABLE_DELAY", None) is not None:
+            self._peltier_enable_delay = gcmd.get_float("ENABLE_DELAY", minval=0.0)
+            self._interface.send_command(
+                CmdPeltierEnableDelay(self._peltier_enable_delay)
+            )
+
+        if gcmd.get_float("CYCLE_TIME", None) is not None:
+            self._peltier_cycle_time = gcmd.get_float("CYCLE_TIME", above=0.0)
+            self._interface.send_command(CmdPeltierCycleTime(self._peltier_cycle_time))
+
+        if gcmd.get_float("MAX_PWM", None) is not None:
+            self._peltier_max_pwm = gcmd.get_float("MAX_PWM", minval=0.0, maxval=100.0)
+            # Note: MAX_PWM is not sent to controller, it's a local limit
+
+        # PID parameters
+        if gcmd.get_float("KP", None) is not None:
+            self._peltier_kp = gcmd.get_float("KP")
+            self._interface.send_command(CmdPeltierKp(self._peltier_kp))
+
+        if gcmd.get_float("KI", None) is not None:
+            self._peltier_ki = gcmd.get_float("KI")
+            self._interface.send_command(CmdPeltierKi(self._peltier_ki))
+
+        if gcmd.get_float("KD", None) is not None:
+            self._peltier_kd = gcmd.get_float("KD")
+            self._interface.send_command(CmdPeltierKd(self._peltier_kd))
+
+        if gcmd.get_float("SMOOTH_TIME", None) is not None:
+            self._peltier_smooth_time = gcmd.get_float("SMOOTH_TIME", minval=0.0)
+            self._interface.send_command(
+                CmdPeltierSmoothTime(self._peltier_smooth_time)
+            )
+
+        gcmd.respond_info("Peltier configuration updated")
+
+    def cmd_NEVERMORE_PELTIER_STATUS(self, gcmd: GCodeCommand) -> None:
+        if not self._interface.connected:
+            gcmd.respond_info(f"'{self.name}' not connected")
+            return
+
+        # TODO: Read actual values from controller state
+        # For now, show configured values
+        gcmd.respond_info(f"=== Peltier Status ({self.name}) ===")
+        gcmd.respond_info(f"Enabled: {self._peltier_enabled}")
+        gcmd.respond_info(f"Target Temperature: {self._peltier_target_temp:.1f}°C")
+        gcmd.respond_info(
+            f"Control Mode: {'PID' if self._peltier_use_pid else 'Bang-Bang'}"
+        )
+        gcmd.respond_info(f"Cold Side Temp: N/A")  # TODO: Read from state
+        gcmd.respond_info(f"Hot Side Temp: N/A")  # TODO: Read from state
+        gcmd.respond_info(f"PWM Power: N/A")  # TODO: Read from state
+        gcmd.respond_info(f"Error Status: N/A")  # TODO: Read from state
+        gcmd.respond_info("")
+        gcmd.respond_info("Safety Limits:")
+        gcmd.respond_info(
+            f"  Cold Side: {self._peltier_min_temp_cold:.1f}°C to {self._peltier_max_temp_cold:.1f}°C"
+        )
+        gcmd.respond_info(
+            f"  Hot Side: {self._peltier_min_temp_hot:.1f}°C to {self._peltier_max_temp_hot:.1f}°C"
+        )
+        gcmd.respond_info(f"  Max Deviation: {self._peltier_max_deviation:.1f}°C")
+        gcmd.respond_info("")
+        gcmd.respond_info("Control Parameters:")
+        gcmd.respond_info(f"  Enable Delay: {self._peltier_enable_delay:.1f}s")
+        gcmd.respond_info(f"  Cycle Time: {self._peltier_cycle_time:.3f}s")
+        gcmd.respond_info(f"  Max PWM: {self._peltier_max_pwm:.1f}%")
+        if self._peltier_use_pid:
+            gcmd.respond_info("")
+            gcmd.respond_info("PID Parameters:")
+            gcmd.respond_info(f"  Kp: {self._peltier_kp:.2f}")
+            gcmd.respond_info(f"  Ki: {self._peltier_ki:.2f}")
+            gcmd.respond_info(f"  Kd: {self._peltier_kd:.2f}")
+            gcmd.respond_info(f"  Smooth Time: {self._peltier_smooth_time:.2f}s")
 
 
 # basically ripped from `extras/fan_generic.py`
