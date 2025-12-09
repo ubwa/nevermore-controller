@@ -12,7 +12,7 @@ FetchContent_Declare(
 )
 FetchContent_Declare(
   lvgl
-  GIT_REPOSITORY git@github.com:lvgl/lvgl.git
+  GIT_REPOSITORY https://github.com/lvgl/lvgl.git
   GIT_TAG release/v8.3
   GIT_SHALLOW ON
 )
