@@ -18,6 +18,18 @@ namespace nevermore {
 
 constexpr uint32_t PIN_MAX = 30;
 
+constexpr size_t ADC_CHANNELS_MAX = 4;
+
+// Thermistor calibration configuration for ADC-based temperature sensors
+// Defaults are for a standard 10K 3950 NTC thermistor
+struct [[gnu::packed]] ThermistorCalibration {
+    float r_series = 10000.0f;      // Series resistor (Ohms)
+    float r_nominal = 10000.0f;     // Thermistor resistance at T_nominal (Ohms)
+    float t_nominal = 25.0f;        // Nominal temperature (°C)
+    float b_coefficient = 3950.0f;  // Beta coefficient (K)
+    float v_ref = 3.3f;             // Reference voltage (V)
+};
+
 struct [[gnu::packed]] GPIO {
     static constexpr GPIO none() {
         return {};
@@ -161,6 +173,13 @@ struct [[gnu::packed]] Pins {
     GPIOs fan_pwm{};         // mirrored
     GPIOs fan_tachometer{};  // summed in SW
     GPIOs neopixel_data{};   // reserve space, but disallow multiple pins
+    GPIOs peltier_pwm{};
+
+    // Generic ADC thermistor sensors (can be used for any purpose)
+    // Must use GPIO 26-29 only (ADC0-ADC3). Validation enforced in validate_or_throw()
+    GPIO adc_thermistor[ADC_CHANNELS_MAX]{};  // GPIO pins for ADC-based thermistor sensors
+    ThermistorCalibration adc_thermistor_cal[ADC_CHANNELS_MAX]{};  // Calibration for each sensor
+
     GPIO photocatalytic_pwm;
     GPIO vent_servo_pwm;
     GPIO cooler_pwm;
@@ -177,7 +196,8 @@ struct [[gnu::packed]] Pins {
 
     // HACK: reserve for future expansion w/o disturbing peers in setting struct
     // +3 bytes since it's included with padding
-    std::array<uint8_t, 34> unused_spare_space{};
+    // Reduced from 34 to 10 bytes after adding peltier pins (3 * 8 = 24 bytes used)
+    std::array<uint8_t, 10> unused_spare_space{};
 
     constexpr void validate_or_throw() const;
 
@@ -190,6 +210,7 @@ struct [[gnu::packed]] Pins {
                 go_outer(xs, allow_sharing);
         };
         go(fan_pwm, true);
+        go(peltier_pwm, true);
         go(vent_servo_pwm);
         // PC and cooler can share same PWM b/c we're just varying the duty %.
         // Frequency can be the same for both.
@@ -221,6 +242,8 @@ struct [[gnu::packed]] Pins {
         if (!apply(fan_pwm)) return false;
         if (!apply(fan_tachometer)) return false;
         if (!apply(neopixel_data)) return false;
+        if (!apply(peltier_pwm)) return false;
+        if (!apply(adc_thermistor)) return false;
         if (!apply(photocatalytic_pwm)) return false;
         if (!apply(vent_servo_pwm)) return false;
         if (!apply(cooler_pwm)) return false;
@@ -317,7 +340,7 @@ private:
     }
 };
 
-static_assert(sizeof(Pins) == 200, "can't resize this w/o bumping `Settings` version");
+static_assert(sizeof(Pins) == 268, "can't resize this w/o bumping `Settings` version");
 
 }  // namespace nevermore
 
@@ -386,4 +409,12 @@ inline constexpr void nevermore::Pins::validate_or_throw() const {
     };
 
     disallow_multiples(neopixel_data, "Config uses multiple NeoPixel data GPIOs.");
+
+    // Validate ADC thermistor sensor pins (must be GPIO 26-29 for ADC channels 0-3)
+    auto validate_adc_pin = [](GPIO const& pin, char const* msg) {
+        if (pin && (uint8_t(pin) < 26 || uint8_t(pin) > 29)) throw msg;
+    };
+
+    for (auto&& pin : adc_thermistor)
+        validate_adc_pin(pin, "Config uses invalid GPIO for ADC thermistor (must be GPIO 26-29 for ADC).");
 }
