@@ -52,6 +52,45 @@
 #define SERVO_VENT_RANGE 9c327c7f_188f_4345_950f_bd586f13f324_01
 #define SERVO_VENT_POWER 0543a134_244f_405b_9d43_0351a5336ef7_01
 
+// Peltier - Monitoring characteristics
+#define PELTIER_SENSOR_COLD_TEMP 2A6E_01
+#define PELTIER_SENSOR_HOT_TEMP 2A6E_02
+#define PELTIER_POWER 2B04_0d
+#define PELTIER_ERROR_STATUS e8f3a9b2_4c7d_4e1a_9f6b_3d2c1a5e8f7c_01
+
+// Peltier - Control characteristics
+#define PELTIER_TARGET_TEMP 2A6E_03
+#define PELTIER_ENABLE a1b2c3d4_5e6f_7a8b_9c0d_1e2f3a4b5c6d_01
+
+// Peltier - Configuration characteristics (Temperature limits)
+#define PELTIER_MIN_TEMP_COLD_SIDE 2A6E_04
+#define PELTIER_MAX_TEMP_COLD_SIDE 2A6E_05
+#define PELTIER_MIN_TEMP_HOT_SIDE 2A6E_06
+#define PELTIER_MAX_TEMP_HOT_SIDE 2A6E_07
+#define PELTIER_MAX_DEVIATION 2A6E_08
+
+// Peltier - Configuration characteristics (Control parameters)
+#define PELTIER_ENABLE_DELAY 2B15_02
+#define PELTIER_CYCLE_TIME 2B15_03
+
+// Peltier - Configuration characteristics (PID parameters)
+#define PELTIER_KP f7e6d5c4_b3a2_9180_7f6e_5d4c3b2a1908_01
+#define PELTIER_KI f7e6d5c4_b3a2_9180_7f6e_5d4c3b2a1908_02
+#define PELTIER_KD f7e6d5c4_b3a2_9180_7f6e_5d4c3b2a1908_03
+#define PELTIER_SMOOTH_TIME 2B15_04
+
+// Peltier - Configuration characteristics (Safety parameters)
+#define PELTIER_DEW_POINT_SAFETY 2A6E_09
+#define PELTIER_HOT_SIDE_SAFETY 2A6E_0a
+
+// Peltier - Configuration characteristics (Watermark control)
+#define PELTIER_CONTROL_MODE 2B15_05
+#define PELTIER_WATERMARK_HIGH 2A6E_0b
+#define PELTIER_WATERMARK_LOW 2A6E_0c
+
+// Peltier - PID Auto-tune
+#define PELTIER_AUTOTUNE f7e6d5c4_b3a2_9180_7f6e_5d4c3b2a1908_04
+
 // Config
 #define CONFIG_REBOOT f48a18bb_e03c_4583_8006_5b54422e2045_01
 #define CONFIG_FLAGS d4b66bf4_3d8f_4746_b6a2_8a59d2eac3ce_01
