@@ -11,6 +11,7 @@
 #include "gatt/environmental.hpp"
 #include "gatt/fan.hpp"
 #include "gatt/handler_helpers.hpp"
+#include "gatt/peltier.hpp"
 #include "gatt/photocatalytic.hpp"
 #include "gatt/servo.hpp"
 #include "gatt/ws2812.hpp"
@@ -33,6 +34,7 @@ using namespace bt::advert;
     FOREACH_SERVICE_ACTION(display)        \
     FOREACH_SERVICE_ACTION(environmental)  \
     FOREACH_SERVICE_ACTION(fan)            \
+    FOREACH_SERVICE_ACTION(peltier)        \
     FOREACH_SERVICE_ACTION(photocatalytic) \
     FOREACH_SERVICE_ACTION(servo)          \
     FOREACH_SERVICE_ACTION(ws2812)
