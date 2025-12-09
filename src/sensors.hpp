@@ -63,7 +63,17 @@ struct [[gnu::packed]] Sensors {
     auto operator<=>(Sensors const&) const = default;
 };
 
+struct [[gnu::packed]] PeltierSensors {
+    BLE::Temperature temperature_cold;
+    BLE::Temperature temperature_hot;
+};
+
+// Generic ADC thermistor sensor readings (up to 4 sensors)
+constexpr size_t ADC_THERMISTOR_MAX = 4;
+extern BLE::Temperature g_adc_thermistor_temps[ADC_THERMISTOR_MAX];
+
 extern Sensors g_sensors;
+extern PeltierSensors p_sensors;
 extern SemaphoreHandle_t g_sensors_lock;
 
 // Sensors are registered as periodic workers for the context.

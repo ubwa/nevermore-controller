@@ -4,6 +4,7 @@
 #include "sdk/i2c_hw.hpp"
 #include "sdk/i2c_pio.hpp"
 #include "sdk/task.hpp"
+#include "sensors/adc_thermistor.hpp"
 #include "sensors/ahtxx.hpp"
 #include "sensors/async_sensor.hpp"
 #include "sensors/bme280.hpp"
@@ -18,7 +19,9 @@
 #include "sensors/sht4x.hpp"
 #include "sensors/zmod4410.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -27,6 +30,12 @@ using namespace std;
 namespace nevermore::sensors {
 
 Sensors g_sensors;
+PeltierSensors p_sensors = {
+        .temperature_cold = BLE::NOT_KNOWN,
+        .temperature_hot = BLE::NOT_KNOWN,
+};
+BLE::Temperature g_adc_thermistor_temps[ADC_THERMISTOR_MAX] = {
+        BLE::NOT_KNOWN, BLE::NOT_KNOWN, BLE::NOT_KNOWN, BLE::NOT_KNOWN};
 SemaphoreHandle_t g_sensors_lock;
 
 namespace {
@@ -191,6 +200,55 @@ bool init() {
     g_sensor_devices.shrink_to_fit();
 
     printf("sensor scan complete\n");
+
+     // Initialize ADC thermistor sensors
+    printf("Scanning for ADC thermistor sensors...\n");
+    int adc_sensor_count = 0;
+
+    for (size_t i = 0; i < std::size(Pins::active().adc_thermistor) && i < ADC_THERMISTOR_MAX; i++) {
+        auto pin = Pins::active().adc_thermistor[i];
+        if (!pin) continue;
+
+        if (uint8_t(pin) != 26 && uint8_t(pin) != 27) {
+            printf("WARNING: ADC thermistor GPIO %u is not supported (only pins 26 and 27 are enabled)\n",
+                    uint8_t(pin));
+            continue;
+        }
+
+        uint32_t adc_channel = uint8_t(pin) - 26;
+        printf("Initializing ADC thermistor %zu on GPIO %u (ADC channel %lu)...\n", i, uint8_t(pin),
+                (unsigned long)adc_channel);
+
+        // Initialize ADC for this pin
+        adc_gpio_init(pin);
+
+        // Get thermistor config from pins
+        auto const& cal = Pins::active().adc_thermistor_cal[i];
+        ThermistorConfig config{
+                .r_series = cal.r_series,
+                .r_nominal = cal.r_nominal,
+                .t_nominal = cal.t_nominal,
+                .b_coefficient = cal.b_coefficient,
+                .v_ref = cal.v_ref,
+        };
+
+        // Create sensor name
+        char sensor_name[32];
+        snprintf(sensor_name, sizeof(sensor_name), "ADC Thermistor %zu", i);
+
+        // Create and register the ADC thermistor sensor
+        auto sensor = std::make_unique<ADCThermistorSensor>(
+                adc_channel, uint8_t(pin), sensor_name, g_adc_thermistor_temps[i], config);
+        sensors_add(std::move(sensor));
+        adc_sensor_count++;
+    }
+
+    if (adc_sensor_count > 0) {
+        printf("ADC thermistor sensors registered: %d\n", adc_sensor_count);
+    } else {
+        printf("No ADC thermistor sensors detected\n");
+    }
+ 
 
     // wait again b/c probing might be implemented by sending a reset command to the sensor
     task_delay<SENSOR_POWER_ON_DELAY>();
